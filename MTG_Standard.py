@@ -1,99 +1,101 @@
-#Extract data
+# ## MTG Standard Cards
+
+# ### 'Gather' data from MTG JSON
+
+
 #import packages
 import pandas as pd
 import requests as re
-#load from url
-mtgjson = re.get('https://mtgjson.com/json/Standard.json')
-mtgjson.status_code
+#load json from url
+mtgjson = re.get('https://mtgjson.com/api/v5/Standard.json')
+#check connection
+print(mtgjson.status_code)
+
+
+# ### 'Draw' cards by set
+
+
 #convert to dict
 mtgjson_d = mtgjson.json()
-type(mtgjson_d)
 #convert from dict to df
-sets = pd.DataFrame(mtgjson_d).transpose()
-#Set up Cards dataframe
-#Step 1: create function to get all attributes by key in cards dict
-def get_cardstuff(list_of_dicts, key):
-    a_list = []
+sets = pd.DataFrame(mtgjson_d)
+#clean to exclude metadata - should only be one field 'data' containing all card information for each set
+sets = sets.iloc[2:,[1]].copy()
+#
+#extract data for each set
+#the structure of the json dicts is: {'data' : {'set' : {'cards': {x}}}}
+#want cards, list of dicts
+#Ex. eld = sets['data'][0]['cards']
+#
+def cards_data(dict):
+    return dict['cards']
+#organize all cards data as list of dicts in a table indexed by set
+sets['cards'] = sets.apply(lambda x : cards_data(x['data']), axis= 1)
+sets = sets[['cards']].copy()
+
+
+# ### 'Summon' attributes for each card and combine all cards in tabular form
+
+
+#extract card attributes for each card in the set
+#combine them later in tabular form
+def list_by_set(list_of_dicts, key_name):
+    target_list = []
     for d in list_of_dicts:
-        if key in d.keys():
-            a_list.append(d.get(key))
+        if key_name in d.keys():
+            target_list.append(d[key_name])
         else:
-            a_list.append('')
-    return a_list
-#this works for pulling out data by key in dict
-#Step 2: apply function to 'sets' df
-sets['Name'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'name'), axis= 1)
-sets['Color'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'colors'), axis= 1)
-sets['ColorID'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'colorIdentity'), axis= 1)
-sets['Type'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'types'), axis= 1)
-sets['Subtype'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'subtypes'), axis= 1)
-sets['Text'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'text'), axis= 1)
-sets['Power'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'power'), axis= 1)
-sets['Toughness'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'toughness'), axis= 1)
-sets['CMC'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'convertedManaCost'), axis= 1)
-sets['Rarity'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'rarity'), axis= 1)
-sets['Printings'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'printings'), axis= 1)
-sets['Prices'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'prices'), axis= 1)
-sets['Layout'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'layout'), axis= 1)
-sets['Side'] = sets.apply(lambda x: get_cardstuff(x['cards'], 'side'), axis= 1)
-#rename old 'name' column to 'Set' to avoid confusion
-sets['Set'] = sets['name']
-#Now have additional columns; each contains a list of interesting attributes for all cards in Standard
-#Step 3: make new function to pull out each item from the series of lists made previously.
-def get_list_item(series_of_lists):
-    a_list = []
-    for l in series_of_lists:
-        for i in l:
-            a_list.append(i)
-    return a_list
-#use this function to create new, expanded df with ALL the cards in ALL Standard sets
-#Step 4: expand the index and set names of sets df
-set_list = []
-setid_list = []
-for i in sets.index:
-    set_name = sets.loc[i, 'name']
-    set_id = i
-    for j in sets.loc[i, 'cards']:
-        set_list.append(set_name)
-        setid_list.append(set_id)
-#use as set ID in new df: cards table
-#Step 5: apply 'get_list_item' to blow up list
-name_list = get_list_item(sets['Name'])
-color_list = get_list_item(sets['Color'])
-colorID_list = get_list_item(sets['ColorID'])
-type_list = get_list_item(sets['Type'])
-subtype_list = get_list_item(sets['Subtype'])
-text_list = get_list_item(sets['Text'])
-power_list = get_list_item(sets['Power'])
-toughness_list = get_list_item(sets['Toughness'])
-cmc_list = get_list_item(sets['CMC'])
-rarity_list = get_list_item(sets['Rarity'])
-printings_list = get_list_item(sets['Printings'])
-prices_list = get_list_item(sets['Prices'])
-layout_list = get_list_item(sets['Layout'])
-side_list = get_list_item(sets['Side'])
-#use each list as series for new df: cards table
-#Step 6: create the cards table from dict
-new_list_of_lists = [set_list, setid_list, name_list, color_list, colorID_list, type_list, subtype_list, text_list, power_list, toughness_list, cmc_list, rarity_list,
-                     printings_list, prices_list, layout_list, side_list]
-new_dict = dict(zip(['Set', 'SetID', 'Name', 'Color', 'ColorID', 'Type', 'Subtype', 'Text', 'Power', 'Toughness', 'CMC', 'Rarity', 'Printings', 'Prices', 'Layout', 'Side'], 
-                    new_list_of_lists))
-cards = pd.DataFrame(new_dict)
-#Step 7: format dtypes and clean up strings to make it more readable
-cards['Name'] = cards['Name'].astype('str')
-cards['Type'] = cards['Type'].astype('str').str.strip("[]").str.replace("'", "")
-cards['Subtype'] = cards['Subtype'].astype('str').str.strip("[]").str.replace("'", "")
-cards['Color'] = cards['Color'].astype('str').str.strip("[]").str.replace("'", "")
-cards['ColorID'] = cards['ColorID'].astype('str').str.strip("[]").str.replace("'", "")
-cards['SetID'] = cards['SetID'].astype('str')
-cards['Set'] = cards['Set'].astype('str')
-cards['CMC'] = cards['CMC'].astype('int64')
-cards['Rarity'] = cards['Rarity'].astype('str').str.capitalize()
-cards['Printings'] = cards['Printings'].astype('str').str.strip("[]").str.replace("'", "")
-#Step 8: find and remove dups
-dups = cards[cards.duplicated(subset= 'Name')]
-#dups occur where name & set is the same, otherwise it's just a reprint
-#remove all dups of name AND set in sets_df
-cards = cards.drop_duplicates(subset = ['Name', 'SetID'])
-#Note: this also gets rid of the different basic land versions, but going to remove lands anyway
-cards.to_csv(path_or_buf='mtg_standard.csv', index= False)
+        #fill in missing information with blanks (keep same number of records)
+            target_list.append('')
+    return target_list
+#
+standard_cards = pd.DataFrame()
+#
+for i in range(len(sets['cards'])):
+    current_set = sets.index[i]
+    all_attributes_set = sets['cards'][i]
+    #extract list of attributes for all cards in set
+    i_names = list_by_set(all_attributes_set, 'name')
+    i_colors = list_by_set(all_attributes_set, 'colors')
+    i_colorid = list_by_set(all_attributes_set, 'colorIdentity')
+    i_type = list_by_set(all_attributes_set, 'types')
+    i_subtype = list_by_set(all_attributes_set, 'subtypes')
+    i_text = list_by_set(all_attributes_set, 'text')
+    i_power = list_by_set(all_attributes_set, 'power')
+    i_toughness = list_by_set(all_attributes_set, 'toughness')
+    i_cmc = list_by_set(all_attributes_set, 'convertedManaCost')
+    i_rarity = list_by_set(all_attributes_set, 'rarity')
+    i_printings = list_by_set(all_attributes_set, 'printings')
+    i_keywords = list_by_set(all_attributes_set, 'keywords')
+    i_layout = list_by_set(all_attributes_set, 'layout')
+    i_side = list_by_set(all_attributes_set, 'side')
+    #
+    #set up pandas DataFrame
+    #combine all lists of attributes into list (of lists)
+    list_of_attributes = [i_names, i_colors, i_colorid, i_type, i_subtype, i_text, i_power, i_toughness, i_cmc, i_rarity, i_printings, i_keywords, i_layout, i_side]  
+    #zip attributes with field names before converting to DataFrame
+    dict_for_df = dict(zip(['Name', 'Color', 'ColorID', 'Type', 'Subtype', 'Text', 'Power', 'Toughness', 'CMC', 'Rarity', 'Printings', 'Keywords', 'Layout', 'Side'], list_of_attributes))
+    #convert dict to DataFrame
+    set_cards = pd.DataFrame(dict_for_df)
+    set_cards['Set'] = current_set = sets.index[i]
+    #
+    standard_cards = standard_cards.append(set_cards)
+    #
+standard_cards = standard_cards.reset_index().drop(columns= 'index')
+
+
+# ### Prettify table and output as .csv file
+
+standard_cards['Name'] = standard_cards['Name'].astype('str')
+standard_cards['Type'] = standard_cards['Type'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['Subtype'] = standard_cards['Subtype'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['Color'] = standard_cards['Color'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['ColorID'] = standard_cards['ColorID'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['CMC'] = standard_cards['CMC'].astype('int64')
+standard_cards['Rarity'] = standard_cards['Rarity'].astype('str').str.capitalize()
+standard_cards['Printings'] = standard_cards['Printings'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['Keywords'] = standard_cards['Keywords'].astype('str').str.strip("[]").str.replace("'", "")
+standard_cards['Layout'] = standard_cards['Layout'].astype('str').str.capitalize()
+#
+standard_cards = standard_cards[['Name', 'Set', 'Color', 'ColorID', 'Type', 'Subtype', 'CMC', 'Rarity', 'Text', 'Keywords', 'Power', 'Toughness', 'Printings', 'Layout', 'Side']]
+standard_cards.to_csv('mtg_standard_cards.csv', index= False)

@@ -1,6 +1,6 @@
 # MTG-Standard
 Card and set data for Magic: the Gathering, Standard format
 
-Loads all cards from Standard format from MTGJSON and creates csv with the following fields:
+Loads all cards from Standard format from MTG JSON and creates a pandas DataFrame and .csv file with the following fields:
 
-**Set, SetID, Name, Color, ColorID, Type, Subtype, Text, Power, Toughness, CMC, Rarity, Printings, Prices, Layout, Side**
+**Name, Set, Color, ColorID, Type, Subtype, CMC, Rarity, Text, Keywords, Power, Toughness, Printings, Layout, Side**
